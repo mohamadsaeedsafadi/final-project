@@ -33,16 +33,6 @@ return new class extends Migration
             $table->unsignedTinyInteger('failed_attempts')->default(0);
             $table->timestamp('locked_until')->nullable();
 
-    $table->decimal('lat', 10, 7)->nullable();
-$table->decimal('lng', 10, 7)->nullable();
-
-$table->timestamp('password_changed_at')->nullable();
-
-    // provider only
-       $table->decimal('wallet_balance', 15, 2)->default(0);
-
-    $table->float('rating_avg')->default(0);
-    $table->integer('ratings_count')->default(0);
             $table->timestamps();
 });
 

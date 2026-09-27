@@ -15,7 +15,7 @@ return new class extends Migration
     $table->id();
     $table->foreignId('category_id')->constrained('service_categories')->cascadeOnDelete();
     $table->text('question');
-    $table->enum('type', ['text', 'number', 'select', 'multi_select', 'image']);
+    $table->enum('type', ['text', 'number', 'select', 'multi_select']);
     $table->json('options')->nullable(); 
     $table->boolean('is_required')->default(true);
     $table->timestamps();

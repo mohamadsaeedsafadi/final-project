@@ -27,19 +27,12 @@ return new class extends Migration
 
     $table->text('message')->nullable();
 
- $table->enum('status', [
-    'pending',
-    'accepted',
-    'in_progress',
-    'awaiting_user_approval',
-    'price_rejected',
-    'awaiting_payment',
-    'paid',
-    'waiting_for_rating',
-    'closed',
-    'rejected'
-])->default('pending');
-$table->decimal('final_price', 10, 2)->nullable();
+    $table->enum('status', [
+        'pending',
+        'accepted',
+        'rejected'
+    ])->default('pending');
+
     $table->timestamps();
 
  

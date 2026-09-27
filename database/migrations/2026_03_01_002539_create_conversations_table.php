@@ -11,21 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-Schema::create('conversations', function (Blueprint $table) {
+      Schema::create('conversations', function (Blueprint $table) {
     $table->id();
 
-    $table->foreignId('service_request_id')
-          ->constrained()
-          ->cascadeOnDelete();
+    $table->foreignId('service_request_id')->constrained()->cascadeOnDelete();
 
-    $table->foreignId('user_id')
-          ->constrained('users')
-          ->cascadeOnDelete();
+    $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('provider_id')->constrained()->cascadeOnDelete();
 
-    $table->foreignId('provider_id')
-          ->constrained('users')
-          ->cascadeOnDelete();
-    $table->enum('status', ['open', 'closed'])->default('open');
     $table->timestamps();
 });
     }

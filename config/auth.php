@@ -48,10 +48,6 @@ return [
         'driver' => 'jwt',
         'provider' => 'admins',
     ],
-    'cashier_api' => [
-    'driver' => 'jwt',
-    'provider' => 'cashiers',
-],
 ],
 
     /*
@@ -83,10 +79,6 @@ return [
     'admins' => [
         'driver' => 'eloquent',
         'model' => App\Models\Admin::class,
-    ],
-     'cashiers' => [
-        'driver' => 'eloquent',
-        'model' => App\Models\Cashier::class,
     ],
 ],
 

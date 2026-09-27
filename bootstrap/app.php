@@ -17,12 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
              $middleware->alias([
             'verified' => EnsureEmailIsVerified::class,
         ]);
-    })->withMiddleware(function ($middleware) {
-    $middleware->alias([
-        'check.ban' => \App\Http\Middleware\CheckBan::class,
-    ]);
-}) 
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
-    
