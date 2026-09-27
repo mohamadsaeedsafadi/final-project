@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Responses\ApiResponse;
 use App\Models\Conversation;
 use App\Services\chat\ChatService;
 use Illuminate\Http\Request;
+
 class ChatController extends Controller
 {
     public function __construct(protected ChatService $chatService) {}
@@ -14,56 +14,43 @@ class ChatController extends Controller
     public function send(Request $request, $conversationId)
     {
         $request->validate([
-            'message' => 'required|string|max:250'
+            'message' => 'required'
         ]);
 
         $conversation = Conversation::findOrFail($conversationId);
 
-        $user = $request->user();
+        if (auth('user')->check()) {
+            $senderType = 'user';
+            $senderId = auth('user')->id();
+        } elseif (auth('provider')->check()) {
+            $senderType = 'provider';
+            $senderId = auth('provider')->id();
+        } else {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
-       
+        // حماية
         if (
-            $conversation->user_id !== $user->id &&
-            $conversation->provider_id !== $user->id
+            ($senderType == 'user' && $conversation->user_id != $senderId) ||
+            ($senderType == 'provider' && $conversation->provider_id != $senderId)
         ) {
-            
-            
-            return ApiResponse::error('Unauthorized', 403);
+            return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $msg = $this->chatService->sendMessage(
             $conversation,
-            $user->id,
+            $senderType,
+            $senderId,
             $request->message
         );
 
-      
-        return ApiResponse::success($msg);
+        return response()->json($msg);
     }
 
-    public function messages(Request $request, $conversationId)
-{
-    $conversation = Conversation::findOrFail($conversationId);
-
-    if (
-        $conversation->user_id !== $request->user()->id &&
-        $conversation->provider_id !== $request->user()->id
-    ) {
-          return ApiResponse::error('Unauthorized', 403);
-
+    public function messages($conversationId)
+    {
+        return response()->json(
+            $this->chatService->getMessages($conversationId)
+        );
     }
-
-   
-    return ApiResponse::success(
-    $this->chatService->getMessages($conversationId)
-);
-}
-public function myChats(Request $request)
-{
-    $chats = $this->chatService->myConversations($request->user());
-
-  return ApiResponse::success(
-    $chats
-);
-}
 }

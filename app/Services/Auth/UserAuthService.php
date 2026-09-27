@@ -25,7 +25,7 @@ class UserAuthService
         throw new \Exception('Invalid credentials');
     }
 
-   
+    // حساب مقفل؟
     if ($user->locked_until && now()->lessThan($user->locked_until)) {
         throw new \Exception('Account locked temporarily');
     }
@@ -52,7 +52,7 @@ class UserAuthService
         throw new \Exception('Email not verified');
     }
 
-   
+    // reset attempts
     $user->update([
         'failed_attempts' => 0,
         'locked_until' => null,
@@ -61,40 +61,29 @@ class UserAuthService
     auth()->shouldUse('user_api');
 
     $token = JWTAuth::fromUser($user);
-    $mustChangePassword = false;
 
-if ($user->password_changed_at) {
-    $mustChangePassword = $user->password_changed_at->diffInDays(now()) >= 90;
-    
+    return $this->respondWithToken($token);
 }
 
-$userrole = $user->role;
-      return [
-    'token' => $this->respondWithToken($token),
-    'role' => $user->role,
-    'must_change_password' => $mustChangePassword
-];
-}
+    public function refresh(): array
+    {
+        auth()->shouldUse('user_api');
 
-  public function refresh(): array
-{
-    auth()->shouldUse('user_api');
+        try {
+            $token = JWTAuth::refresh(JWTAuth::getToken());
+        } catch (JWTException $e) {
+            throw new \Exception('Token refresh failed');
+        }
 
-    try {
-        $newToken = auth('user_api')->refresh();
-    } catch (\Exception $e) {
-        throw new \Exception('Refresh token expired');
+        return $this->respondWithToken($token);
     }
-
-        return [$this->respondWithToken($newToken)];
-}
 
     protected function respondWithToken(string $token): array
     {
         return [
             'access_token' => $token,
             'token_type'   => 'bearer',
-            'expires_in'   => config('jwt.ttl') ,
+            'expires_in'   => config('jwt.ttl') * 60,
         ];
     }
 }

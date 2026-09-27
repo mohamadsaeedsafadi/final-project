@@ -9,41 +9,41 @@ use Illuminate\Http\Request;
 
 class CategoryManagementController extends Controller
 {
-    protected $service;
+    protected $categoryService;
+    protected $questionService;
 
-    public function __construct(CategoryService $service)
-    {
-       
-        $this->service = $service;
+    public function __construct(
+        CategoryService $categoryService,
+        QuestionService $questionService
+    ) {
+        $this->categoryService = $categoryService;
+        $this->questionService = $questionService;
     }
 
-    public function index()
+    public function storeCategory(Request $request)
     {
-        return $this->service->getAll();
-    }
-
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
+        $request->validate([
+            'name' => 'required|string',
             'parent_id' => 'nullable|exists:service_categories,id'
         ]);
 
-        return $this->service->create($data);
+        $category = $this->categoryService->createCategory($request->all());
+
+        return response()->json($category);
     }
 
-    public function update($id, Request $request)
+    public function storeQuestion(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'nullable|string|max:255',
-            'parent_id' => 'nullable|exists:service_categories,id'
+        $request->validate([
+            'category_id' => 'required|exists:service_categories,id',
+            'question' => 'required|string',
+            'type' => 'required|in:text,number,select,multi_select',
+            'options' => 'nullable|array',
+            'is_required' => 'boolean'
         ]);
 
-        return $this->service->update($id, $data);
-    }
+        $question = $this->questionService->createQuestion($request->all());
 
-    public function destroy($id)
-    {
-        return $this->service->delete($id);
+        return response()->json($question);
     }
 }

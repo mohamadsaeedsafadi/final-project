@@ -5,25 +5,8 @@ use App\Models\ServiceQuestion;
 
 class QuestionRepository
 {
-    public function all()
-{
-    return ServiceQuestion::with('category')->latest()->paginate(10);
-}
-
-    public function create($data)
+    public function create(array $data)
     {
         return ServiceQuestion::create($data);
-    }
-
-    public function update($id, $data)
-    {
-        $q = ServiceQuestion::findOrFail($id);
-        $q->update($data);
-        return $q;
-    }
-
-    public function delete($id)
-    {
-        return ServiceQuestion::destroy($id);
     }
 }

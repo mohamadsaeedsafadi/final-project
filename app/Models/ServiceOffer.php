@@ -2,10 +2,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\User;
-use App\Models\ServiceRequest;
-use App\Traits\AuditTrait;
-
 class ServiceOffer extends Model
 {
     protected $fillable = [
@@ -13,14 +9,14 @@ class ServiceOffer extends Model
         'provider_id',
         'min_price',
         'max_price',
-        'final_price',
-        'status', 
-        'message'
+        'message',
+        'status'
     ];
-   public function serviceRequest()
-{
-    return $this->belongsTo(ServiceRequest::class);
-}
+
+    public function request()
+    {
+        return $this->belongsTo(ServiceRequest::class, 'service_request_id');
+    }
 
     public function provider()
     {

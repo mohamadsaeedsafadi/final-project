@@ -46,7 +46,6 @@ class ForgotPasswordService
             'password' => Hash::make($password),
             'failed_attempts' => 0,
             'locked_until' => null,
-            'password_changed_at' => now(),
         ]);
 
         DB::table('password_reset_tokens')->where('email', $email)->delete();

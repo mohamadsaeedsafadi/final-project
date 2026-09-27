@@ -1,24 +1,21 @@
 <?php
 namespace App\Services;
 
-use App\Models\AuditLog;
 use App\Models\ServiceCategory;
 use App\Models\ServiceOffer;
 use App\Repositories\ServiceOfferRepository;
 use App\Services\chat\ChatService;
 use Exception;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
-use App\Services\NotificationService;
-use App\Enums\NotificationType;
+
 class ServiceOfferService
 {
     protected $offerRepo;
-    public function __construct(
-    protected ServiceOfferRepository $repo,
-    protected ChatService $chatService,
-    protected PaymentService $paymentService
-) {}
+
+    public function __construct(ServiceOfferRepository $offerRepo ,ChatService $chatService)
+    {
+        $this->offerRepo = $offerRepo;
+   /*      $this->ChatService=$chatService; */
+    }
 
     public function createOffer($provider, array $data)
     {
@@ -32,8 +29,8 @@ class ServiceOfferService
 if ($exists) {
     throw new Exception('لقد قمت بإرسال عرض مسبقاً لهذا الطلب.');
 }
-$this->clearOfferCache($provider->id);
-        return $this->repo->create([
+
+        return $this->offerRepo->create([
             'service_request_id' => $data['service_request_id'],
             'provider_id' => $provider->id,
             'min_price' => $data['min_price'],
@@ -41,7 +38,21 @@ $this->clearOfferCache($provider->id);
             'message' => $data['message'] ?? null
         ]);
     }
-   
+    public function acceptOffer($user, $offerId)
+{
+    $offer = ServiceOffer::with('request')
+        ->findOrFail($offerId);
+
+    if ($offer->request->user_id !== $user->id) {
+        throw new Exception('غير مصرح لك بقبول هذا العرض.');
+    }
+
+    if ($offer->status !== 'pending') {
+        throw new Exception('لا يمكن قبول هذا العرض.');
+    }
+/* $conversation = $this->chatService->createConversation($request); */
+    return $this->offerRepo->acceptOffer($offer);
+}
   public function assignCategories($provider, array $categoryIds)
 {
     foreach ($categoryIds as $id) {
@@ -54,247 +65,5 @@ $this->clearOfferCache($provider->id);
     }
 
     $provider->categories()->sync($categoryIds);
-    $provider->update([
-        'provider_verified_at' => null
-    ]);
-}
-public function getProviderCategories($provider)
-{
-    return $provider->categories()->get();
-}
-public function acceptOffer(ServiceOffer $offer)
-{
-    $offer->load(['serviceRequest', 'provider']);
-
-    $user = Auth::user();
-
-    if ($offer->serviceRequest->user_id !== $user->id) {
-        throw new \Exception("Unauthorized");
-    }
-
-    if ($offer->serviceRequest->status !== 'pending') {
-        throw new \Exception("Request already accepted");
-    }
-$this->clearOfferCache($offer->provider_id);
-$this->clearOfferCache($offer->serviceRequest->user_id);
-    $offer->update(['status' => 'accepted']);
-    $offer->serviceRequest->update(['status' => 'accepted']);
- ServiceOffer::where('service_request_id', $offer->service_request_id)
-        ->where('id', '!=', $offer->id)
-        ->update(['status' => 'rejected']);
- $conversation = $this->chatService->createConversation(
-    $user,
-    $offer->provider,
-    $offer->serviceRequest
-);
-
-
-NotificationService::send(
-    $offer->provider,
-    "تم قبول العرض",
-    "تم قبول عرضك على الطلب",
-    NotificationType::OFFER_ACCEPTED,
-    ['order_id' => $offer->id]
-);
-   return [
-    'offer' => $offer,
-    'conversation_id' => $conversation->id
-];
-}
-    public function completeService($provider, $offerId, $finalPrice)
-    {
-        $offer = ServiceOffer::findOrFail($offerId);
-if ($offer->status !== 'accepted' && $offer->status !== 'in_progress') {
-    throw new \Exception("Invalid state transition");
-}
-        if($offer->provider_id !== $provider->id ) {
-            throw new \Exception("Unauthorized");
-        }
-
-        if($finalPrice < $offer->min_price || $finalPrice > $offer->max_price) {
-          
-            $this->repo->update($offer, [
-                'final_price' => $finalPrice,
-                'status' => 'awaiting_user_approval'
-            ]);
-        } else {
-           
-            $this->repo->update($offer, [
-                'final_price' => $finalPrice,
-                'status' => 'awaiting_payment'
-            ]);
-        }
-        $user = $offer->serviceRequest->user;
-
-NotificationService::send(
-    $user,
-    "تحديث الطلب",
-    "تم تغيير حالة الطلب إلى {$offer->status}",
-    NotificationType::ORDER_STATUS_CHANGED,
-    ['order_id' => $offer->id]
-);
-
-        return $offer;
-    }
-    public function userApprovePrice($user, $offerId)
-    {
-        $offer = ServiceOffer::findOrFail($offerId);
-
-        if($offer->serviceRequest->user_id !== $user->id || $offer->status !== 'awaiting_user_approval') {
-            throw new \Exception("Unauthorized or invalid state");
-        }
-
-        $this->repo->update($offer, ['status' => 'awaiting_payment']);
-       $user = $offer->serviceRequest->user;
-
-NotificationService::send(
-    $user,
-    "تحديث الطلب",
-    "تم تغيير حالة الطلب إلى {$offer->status}",
-    NotificationType::ORDER_STATUS_CHANGED,
-    ['order_id' => $offer->id]
-);
-        return $offer;
-    }
-
-    public function closeOffer($offer)
-    {
-        $this->repo->update($offer, ['status' => 'closed']);
-        return $offer;
-    }
-    public function userRejectPrice($user, $offerId)
-{
-    $offer = ServiceOffer::findOrFail($offerId);
-
-    if (
-        $offer->serviceRequest->user_id !== $user->id ||
-        $offer->status !== 'awaiting_user_approval'
-    ) {
-        throw new \Exception("Unauthorized or invalid state");
-    }
-
-    $this->repo->update($offer, [
-        'status' => 'price_rejected'
-    ]);
-NotificationService::send(
-    $offer->provider,
-    "تم رفض السعر",
-    "قام المستخدم برفض السعر",
-    NotificationType::NEW_FINAL_PRICE
-);
-    return $offer;
-}
-public function updateFinalPrice($provider, $offerId, $newPrice)
-{
-    $offer = ServiceOffer::findOrFail($offerId);
-
-    if ($offer->provider_id !== $provider->id) {
-        throw new \Exception("Unauthorized");
-    }
-
-    if ($offer->status !== 'price_rejected') {
-        throw new \Exception("Cannot update price now");
-    }
-
-
-   if ($offer->final_price !== null && $newPrice >= $offer->final_price) {
-    throw new \Exception("New price must be lower than previous price");
-}
-
-   
-    if ($newPrice < $offer->min_price || $newPrice > $offer->max_price) {
-
-        $this->repo->update($offer, [
-            'final_price' => $newPrice,
-            'status' => 'awaiting_user_approval'
-        ]);
-
-    } else {
-
-        $this->repo->update($offer, [
-            'final_price' => $newPrice,
-            'status' => 'awaiting_payment'
-        ]);
-    }
-NotificationService::send(
-    $offer->serviceRequest->user,
-    "سعر جديد",
-    "تم إرسال سعر جديد",
-    NotificationType::NEW_FINAL_PRICE
-);
-    return $offer;
-}
-public function startService($provider, $offerId)
-{
-    $offer = ServiceOffer::findOrFail($offerId);
-
-    if ($offer->provider_id !== $provider->id) {
-        throw new \Exception("Unauthorized");
-    }
-
-    if ($offer->status !== 'accepted') {
-        throw new \Exception("Service cannot be started");
-    }
-
-    $this->repo->update($offer, [
-        'status' => 'in_progress'
-    ]);
-NotificationService::send(
-    $offer->serviceRequest->user,
-    "بدأ التنفيذ",
-    "تم بدء تنفيذ الطلب",
-    NotificationType::ORDER_STATUS_CHANGED
-);
-    return $offer;
-}
-public function myoffer($request)
-{
-    $userId = Auth::user()->id;
-    $page = $request->get('page', 1);
-
-    return Cache::remember("offers.my.$userId.page.$page", 60, function () use ($request, $userId) {
-        return $this->repo->getUserOffers($userId, $request->all());
-    });
-}
-public function nearbyOffers($user, $filters)
-{
-    if (!$user->lat || !$user->lng) {
-        throw new \Exception("User location not set");
-    }
-
-    $page = request()->get('page', 1);
-    $radius = $filters['radius'] ?? 10;
-
-    $key = "offers.nearby.$user->id.$user->lat.$user->lng.$radius.page.$page";
-
-    return Cache::remember($key, 300, function () use ($user, $filters) {
-        return $this->repo->getNearbyOffers(
-            $user->lat,
-            $user->lng,
-            $filters
-        );
-    });
-}
-public function recommendProviders($user, $categoryId)
-{
-    if (!$user->lat || !$user->lng) {
-        throw new \Exception("Location required");
-    }
-
-    $page = request()->get('page', 1);
-
-    $key = "providers.recommend.$user->id.$categoryId.page.$page";
-
-    return Cache::remember($key, 600, function () use ($user, $categoryId) {
-        return $this->repo->smartProviders(
-            $user->lat,
-            $user->lng,
-            $categoryId
-        );
-    });
-}
-private function clearOfferCache($userId)
-{
-    Cache::forget("offers.my.$userId");
 }
 }

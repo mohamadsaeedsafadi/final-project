@@ -31,23 +31,17 @@ class UserAuthController extends Controller
         }
     }
 
-  public function refresh()
-{
-    try {
+    public function refresh()
+    {
         return response()->json(
             $this->authService->refresh()
         );
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => $e->getMessage()
-        ], 401);
     }
-}
   public function verifyEmail(Request $request)
 {
     $request->validate([
         'email' => 'required|email',
-         'code'  => 'required|digits:6',
+        'code'  => 'required'
     ]);
 
     $user = User::where('email', $request->email)

@@ -19,20 +19,4 @@ class ConversationRepository
     {
         return Conversation::findOrFail($id);
     }
-     public function getUserConversations($userId)
-    {
-        return Conversation::with([
-        'user',
-        'provider',
-        'messages' => function ($q) {
-            $q->latest()->limit(1);
-        }
-    ])
-    ->where(function ($q) use ($userId) {
-        $q->where('user_id', $userId)
-          ->orWhere('provider_id', $userId);
-    })
-    ->latest()
-    ->paginate(10);
-    }
 }

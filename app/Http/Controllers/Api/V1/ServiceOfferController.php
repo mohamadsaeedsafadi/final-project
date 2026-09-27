@@ -3,41 +3,23 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Responses\ApiResponse;
-use App\Models\Payment;
-use App\Models\ServiceOffer;
-use App\Models\User;
-use App\Services\chat\ChatService;
 use App\Services\ServiceOfferService;
 use Illuminate\Http\Request;
-use App\Services\PaymentService;
-use App\Services\ShamCashService;
-use App\Services\UserService;
-use Illuminate\Support\Facades\Auth;
-use Stripe\PaymentIntent;
-use Stripe\PaymentMethod;
-use Stripe\Stripe;
-
 class ServiceOfferController extends Controller
 {
     protected $service;
-    protected $chatService;
-    protected $pay;
-    protected $userser;
-    public function __construct(ServiceOfferService $service, ChatService $chatService,PaymentService $pay ,UserService $userser)
+
+    public function __construct(ServiceOfferService $service)
     {
         $this->service = $service;
-        $this->pay =$pay;
-      $this->chatService = $chatService;
-      $this->userser= $userser;
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'service_request_id' => 'required|exists:service_requests,id',
-            'min_price' => 'required|numeric|max:10000000|lte:max_price',
-            'max_price' => 'required|numeric|gte:min_price|max:100000000',
+            'min_price' => 'required|numeric',
+            'max_price' => 'required|numeric|gte:min_price',
             'message' => 'nullable|string'
         ]);
 
@@ -46,19 +28,17 @@ class ServiceOfferController extends Controller
             $request->all()
         );
 
-       
-        return ApiResponse::success(
-    $offer
-);
+        return response()->json($offer);
     }
-    public function accept(ServiceOffer $offer)
-    {
-        $offer2 = $this->service->acceptOffer($offer);
-        
-        return ApiResponse::success(
-    $offer2
-);
-    }
+    public function accept(Request $request, $id)
+{
+    $offer = $this->service->acceptOffer(
+        $request->user(),
+        $id
+    );
+
+    return response()->json($offer);
+}
 public function updateCategories(Request $request)
 {
     $request->validate([
@@ -71,173 +51,6 @@ public function updateCategories(Request $request)
         $request->categories
     );
 
-   return ApiResponse::success(null, 'تم تحديث المجالات');
-}
-public function complete(Request $request, $id)
-    {
-        $request->validate(['final_price' => 'required|numeric']);
-        $offer = $this->service->completeService($request->user(), $id, $request->final_price);
-        return ApiResponse::success($offer, 'Service completed');
-    }
-
-    public function myCategories(Request $request)
-{
-    $categories = $this->service->getProviderCategories($request->user());
-
-    return ApiResponse::success($categories);
-}
-public function providerCategories($id)
-{
-    $provider = User::findOrFail($id);
-
-    $categories = $this->service->getProviderCategories($provider);
-
-    return ApiResponse::success($categories);
-}
-    public function approvePrice(Request $request, $id)
-    {
-        $offer = $this->service->userApprovePrice($request->user(), $id);
-        return ApiResponse::success($offer);
-    }
-
-
-
-   public function pay($offer, Request $request)
-{
-    $request->validate([
-        'amount' => 'required|numeric|min:1',
-        'account_number' => 'required|numeric'
-    ]);
-
-    $offer = ServiceOffer::findOrFail($offer);
-
-    $payment = app(PaymentService::class)->pay($offer, $request->amount);
-
-    return response()->json([
-    'message' => 'قم بالتحويل واكتب reference في الملاحظة',
-    'payment_id' => $payment->id,
-    'amount_syp' => $payment->amount_syp,
-    'reference' => $payment->reference 
-]);
-}
-   public function rejectPrice(Request $request, $id)
-{
-    $offer = $this->service->userRejectPrice($request->user(), $id);
-    
-    return ApiResponse::success($offer);
-}
-public function updatePrice(Request $request, $id)
-{
-    $request->validate([
-        'price' => 'required|numeric'
-    ]);
-
-    $offer = $this->service->updateFinalPrice(
-        $request->user(),
-        $id,
-        $request->price
-    );
-return ApiResponse::success($offer);
-}
-public function myoffer(Request $request)
-{
-    $request->validate([
-    'min_price' => 'nullable|numeric',
-    'max_price' => 'nullable|numeric',
-    'rating' => 'nullable|numeric|min:1|max:5',
-    'lat' => 'nullable|numeric',
-    'lng' => 'nullable|numeric',
-    'radius' => 'nullable|numeric',
-    'max_eta' => 'nullable|numeric'
-]);
-    $offers = $this->service->myoffer($request);
-
-    
-    return ApiResponse::success(
-    $offers
-);
-}
-public function nearby(Request $request)
-{
-    $radius = $request->radius ?? 10;
-
-  
-    return ApiResponse::success(
-    $this->userser->nearbyProviders($request->user(), $radius)
-);
-}
-public function nearbyOffers(Request $request)
-{
-    return ApiResponse::success(
-        $this->service->nearbyOffers(
-            $request->user(),
-            $request->all()
-        )
-    );
-}
-public function recommend(Request $request)
-{
-    $request->validate([
-        'category_id' => 'required|exists:service_categories,id'
-    ]);
-
-    
-     return ApiResponse::success(
-     $this->service->recommendProviders(
-            $request->user(),
-            $request->category_id
-        )
-);
-}
-public function verifyPayment($paymentId)
-{
-    $payment = Payment::findOrFail($paymentId);
-
-    if ($payment->status !== 'pending') {
-        return response()->json(['message' => 'Payment already processed']);
-    }
-
-    $shamcash = app(ShamCashService::class);
-
-    $accountId = config('services.shamcash.account_id');
-
-    $transactions = $shamcash->getTransactions($accountId, [
-        'limit' => 50
-    ]);
-
-    foreach ($transactions['data']['transactions'] ?? [] as $tx) {
-
-        if (
-            abs($tx['amount'] - $payment->amount_syp) < 0.0001 &&
-            isset($tx['note']) &&
-            $tx['note'] == $payment->reference &&
-            \Carbon\Carbon::parse($tx['occurred_at'])->gt($payment->created_at)
-        ) {
-
-            $payment->update(['status' => 'paid']);
-
-            $offer = $payment->offer;
-
-            $offer->update([
-                'status' => 'waiting_for_rating'
-            ]);
-            $provider = $offer->provider;
-
-$provider->increment('wallet_balance', $payment->amount_syp);
-
-            app(\App\Services\chat\ChatService::class)
-                ->closeConversation($offer->service_request_id);
-
-            return response()->json([
-                'message' => 'Payment verified & chat closed',
-                'payment' => $payment
-            ]);
-        }
-    }
-
-    return response()->json([
-        'message' => 'لم يتم العثور على عملية الدفع'
-    ], 400);
+    return response()->json(['message' => 'تم تحديث المجالات']);
 }
 }
-

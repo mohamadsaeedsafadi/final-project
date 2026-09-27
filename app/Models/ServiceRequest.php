@@ -10,6 +10,7 @@ class ServiceRequest extends Model
         'answers',
         'status'
     ];
+
     protected $casts = [
         'answers' => 'array'
     ];

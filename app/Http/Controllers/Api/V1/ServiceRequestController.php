@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Responses\ApiResponse;
 use App\Services\ServiceRequestService;
 use Illuminate\Http\Request;
 class ServiceRequestController extends Controller
@@ -19,9 +18,7 @@ class ServiceRequestController extends Controller
     {
         $request->validate([
             'category_id' => 'required|exists:service_categories,id',
-            'answers' => 'required|array',
-'images' => 'nullable|array',
-'images.*' => 'image|mimes:jpg,png,jpeg,gif,svg|max:2048'
+            'answers' => 'required|array'
         ]);
 
         $serviceRequest = $this->service->createRequest(
@@ -29,17 +26,15 @@ class ServiceRequestController extends Controller
             $request->all()
         );
 
-       
-        return ApiResponse::success($serviceRequest);
+        return response()->json($serviceRequest);
     }
     public function availableRequests(Request $request)
 {
-    
-       return ApiResponse::success(
-     $this->service->getAvailableRequestsForProvider(
+    return response()->json(
+        $this->service->getAvailableRequestsForProvider(
             $request->user()
         )
-);
+    );
 }
 
 }

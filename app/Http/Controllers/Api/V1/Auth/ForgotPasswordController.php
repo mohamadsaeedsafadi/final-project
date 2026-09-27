@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Services\Auth\ForgotPasswordService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Password;
 
 class ForgotPasswordController extends Controller
 {
@@ -30,15 +29,8 @@ class ForgotPasswordController extends Controller
     {
         $request->validate([
             'email'    => 'required|email|exists:users,email',
-            'code'     => 'required|digits:6',
-            'password' => [
-        'required',
-        'confirmed',
-        Password::min(8)
-            ->mixedCase() 
-            ->numbers()   
-            ->symbols()   
-    ],
+            'code'     => 'required',
+            'password' => 'required|min:8|confirmed',
         ]);
 
         $this->service->resetPassword(

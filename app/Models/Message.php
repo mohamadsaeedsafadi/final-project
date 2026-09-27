@@ -8,17 +8,8 @@ class Message extends Model
 {
     protected $fillable = [
         'conversation_id',
+        'sender_type',
         'sender_id',
         'message'
     ];
-
-     public function sender()
-    {
-        return $this->belongsTo(User::class, 'sender_id');
-    }
-
-    public function conversation()
-    {
-        return $this->belongsTo(Conversation::class);
-    }
 }
